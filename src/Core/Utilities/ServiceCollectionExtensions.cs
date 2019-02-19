@@ -80,6 +80,7 @@ namespace Bit.Core.Utilities
         {
             services.AddSingleton<IPaymentService, StripePaymentService>();
             services.AddSingleton<IMailService, HandlebarsMailService>();
+//            services.AddSingleton<ILicensingService, LicensingService>();
             services.AddSingleton<ILicensingService, NoopLicensingService>();
             services.AddSingleton<IApplicationCacheService, InMemoryApplicationCacheService>();
 
