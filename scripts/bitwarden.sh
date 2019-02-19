@@ -36,9 +36,13 @@ then
 fi
 
 SCRIPTS_DIR="$OUTPUT/scripts"
-GITHUB_BASE_URL="https://raw.githubusercontent.com/bitwarden/server/master"
-COREVERSION="1.29.0"
-WEBVERSION="2.8.0"
+# GITHUB_BASE_URL="https://raw.githubusercontent.com/bitwarden/server/master"
+ GITHUB_BASE_URL="https://raw.githubusercontent.com/stboissdev/server/srp"
+# COREVERSION="1.29.0"
+COREVERSION=""
+# WEBVERSION="2.8.0"
+WEBVERSION=""
+
 
 # Functions
 
