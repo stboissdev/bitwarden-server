@@ -16,4 +16,4 @@ dotnet publish $DIR/Icons.csproj -c "Release" -o $DIR/obj/Docker/publish
 
 echo -e "\nBuilding docker image"
 docker --version
-docker build -t bitwarden/icons $DIR/.
+docker build -t bitwarden-srp/icons $DIR/.

@@ -19,4 +19,4 @@ dotnet publish $DIR/Admin.csproj -c "Release" -o $DIR/obj/Docker/publish
 
 echo -e "\nBuilding docker image"
 docker --version
-docker build -t bitwarden/admin $DIR/.
+docker build -t bitwarden-srp/admin $DIR/.
