@@ -6,6 +6,10 @@ set -e
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+REGISTRY="localhost:5000"
+REPO="bitwarden-srp"
+REG_REPO="$REGISTRY/$REPO"
+
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 OUTPUT_DIR=".."
@@ -93,7 +97,7 @@ function install() {
     
     pullSetup
     docker run -it --rm --name setup -v $OUTPUT_DIR:/bitwarden \
-        --env-file $ENV_DIR/uid.env bitwarden/setup:$COREVERSION \
+        --env-file $ENV_DIR/uid.env $REG_REPO/setup:$COREVERSION \
         dotnet Setup.dll -install 1 -domain $DOMAIN -letsencrypt $LETS_ENCRYPT -os $OS \
         -corev $COREVERSION -webv $WEBVERSION
 }
@@ -141,7 +145,7 @@ function updateLetsEncrypt() {
 function updateDatabase() {
     pullSetup
     docker run -i --rm --name setup --network container:bitwarden-mssql \
-        -v $OUTPUT_DIR:/bitwarden --env-file $ENV_DIR/uid.env bitwarden/setup:$COREVERSION \
+        -v $OUTPUT_DIR:/bitwarden --env-file $ENV_DIR/uid.env $REG_REPO/setup:$COREVERSION \
         dotnet Setup.dll -update 1 -db 1 -os $OS -corev $COREVERSION -webv $WEBVERSION
     echo "Database update complete"
 }
@@ -152,14 +156,14 @@ function update() {
         pullSetup
     fi
     docker run -i --rm --name setup -v $OUTPUT_DIR:/bitwarden \
-        --env-file $ENV_DIR/uid.env bitwarden/setup:$COREVERSION \
+        --env-file $ENV_DIR/uid.env $REG_REPO/setup:$COREVERSION \
         dotnet Setup.dll -update 1 -os $OS -corev $COREVERSION -webv $WEBVERSION
 }
 
 function printEnvironment() {
     pullSetup
     docker run -i --rm --name setup -v $OUTPUT_DIR:/bitwarden \
-        --env-file $ENV_DIR/uid.env bitwarden/setup:$COREVERSION \
+        --env-file $ENV_DIR/uid.env $REG_REPO/setup:$COREVERSION \
         dotnet Setup.dll -printenv 1 -os $OS -corev $COREVERSION -webv $WEBVERSION
 }
 
@@ -173,7 +177,7 @@ function restart() {
 }
 
 function pullSetup() {
-    docker pull bitwarden/setup:$COREVERSION
+    docker pull $REG_REPO/setup:$COREVERSION
 }
 
 # Commands

@@ -17,8 +17,8 @@ version: '{{{ComposeVersion}}}'
 
 services:
   mssql:
-    image: bitwarden/mssql:{{{CoreVersion}}}
-    container_name: bitwarden-mssql
+    image: localhost:5000/bitwarden-srp/mssql:{{{CoreVersion}}}
+    container_name: bitwarden-srp-mssql
     restart: always
     volumes:
 {{#if MssqlDataDockerVolume}}
@@ -35,7 +35,7 @@ services:
 
   web:
     image: bitwarden/web:{{{WebVersion}}}
-    container_name: bitwarden-web
+    container_name: bitwarden-srp-web
     restart: always
     volumes:
       - ../web:/etc/bitwarden/web
@@ -44,8 +44,8 @@ services:
       - ../env/uid.env
 
   attachments:
-    image: bitwarden/attachments:{{{CoreVersion}}}
-    container_name: bitwarden-attachments
+    image: localhost:5000/bitwarden-srp/attachments:{{{CoreVersion}}}
+    container_name: bitwarden-srp-attachments
     restart: always
     volumes:
       - ../core/attachments:/etc/bitwarden/core/attachments
@@ -54,8 +54,8 @@ services:
       - ../env/uid.env
 
   api:
-    image: bitwarden/api:{{{CoreVersion}}}
-    container_name: bitwarden-api
+    image: localhost:5000/bitwarden-srp/api:{{{CoreVersion}}}
+    container_name: bitwarden-srp-api
     restart: always
     volumes:
       - ../core:/etc/bitwarden/core
@@ -67,8 +67,8 @@ services:
       - ../env/global.override.env
 
   identity:
-    image: bitwarden/identity:{{{CoreVersion}}}
-    container_name: bitwarden-identity
+    image: localhost:5000/bitwarden-srp/identity:{{{CoreVersion}}}
+    container_name: bitwarden-srp-identity
     restart: always
     volumes:
       - ../identity:/etc/bitwarden/identity
@@ -81,8 +81,8 @@ services:
       - ../env/global.override.env
 
   admin:
-    image: bitwarden/admin:{{{CoreVersion}}}
-    container_name: bitwarden-admin
+    image: localhost:5000/bitwarden-srp/admin:{{{CoreVersion}}}
+    container_name: bitwarden-srp-admin
     restart: always
     volumes:
       - ../core:/etc/bitwarden/core
@@ -94,8 +94,8 @@ services:
       - ../env/global.override.env
 
   icons:
-    image: bitwarden/icons:{{{CoreVersion}}}
-    container_name: bitwarden-icons
+    image: localhost:5000/bitwarden-srp/icons:{{{CoreVersion}}}
+    container_name: bitwarden-srp-icons
     restart: always
     volumes:
       - ../ca-certificates:/etc/bitwarden/ca-certificates
@@ -105,8 +105,8 @@ services:
       - ../env/uid.env
 
   notifications:
-    image: bitwarden/notifications:{{{CoreVersion}}}
-    container_name: bitwarden-notifications
+    image: localhost:5000/bitwarden-srp/notifications:{{{CoreVersion}}}
+    container_name: bitwarden-srp-notifications
     restart: always
     volumes:
       - ../ca-certificates:/etc/bitwarden/ca-certificates
@@ -117,8 +117,8 @@ services:
       - ../env/global.override.env
 
   nginx:
-    image: bitwarden/nginx:{{{CoreVersion}}}
-    container_name: bitwarden-nginx
+    image: localhost:5000/bitwarden-srp/nginx:{{{CoreVersion}}}
+    container_name: bitwarden-srp-nginx
     restart: always
 {{#if HasPort}}
     ports:
