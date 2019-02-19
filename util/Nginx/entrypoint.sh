@@ -41,4 +41,6 @@ chown -R $USERNAME:$GROUPNAME /var/run/nginx
 chown -R $USERNAME:$GROUPNAME /var/cache/nginx
 chown -R $USERNAME:$GROUPNAME /var/log/nginx
 
+chown -R $USERNAME:$GROUPNAME /etc/nginx
+
 exec gosu $USERNAME:$GROUPNAME nginx -g 'daemon off;'
