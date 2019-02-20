@@ -26,61 +26,63 @@ namespace Bit.Core.Models.Business
             Name = org.Name;
             BillingEmail = org.BillingEmail;
             BusinessName = org.BusinessName;
-            Enabled = org.Enabled;
+            Enabled = true; //org.Enabled;
             Plan = org.Plan;
-            PlanType = org.PlanType;
-            Seats = org.Seats;
-            MaxCollections = org.MaxCollections;
-            UseGroups = org.UseGroups;
-            UseEvents = org.UseEvents;
-            UseDirectory = org.UseDirectory;
-            UseTotp = org.UseTotp;
-            Use2fa = org.Use2fa;
-            MaxStorageGb = org.MaxStorageGb;
-            SelfHost = org.SelfHost;
-            UsersGetPremium = org.UsersGetPremium;
+            PlanType = PlanType.Custom; //org.PlanType;
+            Seats = short.MaxValue; //org.Seats;
+            MaxCollections = short.MaxValue; //org.MaxCollections;
+            UseGroups = true; //org.UseGroups;
+            UseEvents = true; //org.UseEvents;
+            UseDirectory = true; //org.UseDirectory;
+            UseTotp = true; //org.UseTotp;
+            Use2fa = true; //org.Use2fa;
+            MaxStorageGb = short.MaxValue; //org.MaxStorageGb;
+            SelfHost = true; //org.SelfHost;
+            UsersGetPremium = true; //org.UsersGetPremium;
             Issued = DateTime.UtcNow;
+            Expires = DateTime.MaxValue;
+            Trial = false;
 
-            if(subscriptionInfo?.Subscription == null)
-            {
-                if(org.PlanType == PlanType.Custom && org.ExpirationDate.HasValue)
-                {
-                    Expires = Refresh = org.ExpirationDate.Value;
-                    Trial = false;
-                }
-                else
-                {
-                    Expires = Refresh = Issued.AddDays(7);
-                    Trial = true;
-                }
-            }
-            else if(subscriptionInfo.Subscription.TrialEndDate.HasValue &&
-                subscriptionInfo.Subscription.TrialEndDate.Value > DateTime.UtcNow)
-            {
-                Expires = Refresh = subscriptionInfo.Subscription.TrialEndDate.Value;
-                Trial = true;
-            }
-            else
-            {
-                if(org.ExpirationDate.HasValue && org.ExpirationDate.Value < DateTime.UtcNow)
-                {
-                    // expired
-                    Expires = Refresh = org.ExpirationDate.Value;
-                }
-                else if(subscriptionInfo?.Subscription?.PeriodDuration != null &&
-                    subscriptionInfo.Subscription.PeriodDuration > TimeSpan.FromDays(180))
-                {
-                    Refresh = DateTime.UtcNow.AddDays(30);
-                    Expires = subscriptionInfo?.Subscription.PeriodEndDate.Value.AddDays(60);
-                }
-                else
-                {
-                    Expires = org.ExpirationDate.HasValue ? org.ExpirationDate.Value.AddMonths(11) : Issued.AddYears(1);
-                    Refresh = DateTime.UtcNow - Expires > TimeSpan.FromDays(30) ? DateTime.UtcNow.AddDays(30) : Expires;
-                }
+            // if(subscriptionInfo?.Subscription == null)
+            // {
+            //     if(org.PlanType == PlanType.Custom && org.ExpirationDate.HasValue)
+            //     {
+            //         Expires = Refresh = org.ExpirationDate.Value;
+            //         Trial = false;
+            //     }
+            //     else
+            //     {
+            //         Expires = Refresh = Issued.AddDays(7);
+            //         Trial = true;
+            //     }
+            // }
+            // else if(subscriptionInfo.Subscription.TrialEndDate.HasValue &&
+            //     subscriptionInfo.Subscription.TrialEndDate.Value > DateTime.UtcNow)
+            // {
+            //     Expires = Refresh = subscriptionInfo.Subscription.TrialEndDate.Value;
+            //     Trial = true;
+            // }
+            // else
+            // {
+            //     if(org.ExpirationDate.HasValue && org.ExpirationDate.Value < DateTime.UtcNow)
+            //     {
+            //         // expired
+            //         Expires = Refresh = org.ExpirationDate.Value;
+            //     }
+            //     else if(subscriptionInfo?.Subscription?.PeriodDuration != null &&
+            //         subscriptionInfo.Subscription.PeriodDuration > TimeSpan.FromDays(180))
+            //     {
+            //         Refresh = DateTime.UtcNow.AddDays(30);
+            //         Expires = subscriptionInfo?.Subscription.PeriodEndDate.Value.AddDays(60);
+            //     }
+            //     else
+            //     {
+            //         Expires = org.ExpirationDate.HasValue ? org.ExpirationDate.Value.AddMonths(11) : Issued.AddYears(1);
+            //         Refresh = DateTime.UtcNow - Expires > TimeSpan.FromDays(30) ? DateTime.UtcNow.AddDays(30) : Expires;
+            //     }
 
-                Trial = false;
-            }
+            //     Trial = false;
+            // }
 
             Hash = Convert.ToBase64String(ComputeHash());
             Signature = Convert.ToBase64String(licenseService.SignLicense(this));
@@ -169,7 +171,7 @@ namespace Bit.Core.Models.Business
 
             if(Version >= 1 && Version <= 4)
             {
-                return InstallationId == globalSettings.Installation.Id && SelfHost;
+                return true; //InstallationId == globalSettings.Installation.Id && SelfHost;
             }
             else
             {
@@ -187,8 +189,8 @@ namespace Bit.Core.Models.Business
             if(Version >= 1 && Version <= 4)
             {
                 var valid =
-                    globalSettings.Installation.Id == InstallationId &&
-                    organization.LicenseKey != null && organization.LicenseKey.Equals(LicenseKey) &&
+                    // globalSettings.Installation.Id == InstallationId &&
+                    // organization.LicenseKey != null && organization.LicenseKey.Equals(LicenseKey) &&
                     organization.Enabled == Enabled &&
                     organization.PlanType == PlanType &&
                     organization.Seats == Seats &&
