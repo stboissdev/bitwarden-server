@@ -170,8 +170,10 @@ namespace Bit.Api.Controllers
             {
                 throw new BadRequestException("Invalid license");
             }
+            //  create full organization License
+            var Newlicense =  new OrganizationLicense(license);
 
-            var result = await _organizationService.SignUpAsync(license, user, model.Key, model.CollectionName);
+            var result = await _organizationService.SignUpAsync(Newlicense, user, model.Key, model.CollectionName);
             return new OrganizationResponseModel(result.Item1);
         }
 

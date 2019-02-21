@@ -27,7 +27,7 @@ namespace Bit.Core.Models.Business
             BillingEmail = org.BillingEmail;
             BusinessName = org.BusinessName;
             Enabled = true; //org.Enabled;
-            Plan = org.Plan;
+            Plan = "Custom"; //org.Plan;
             PlanType = PlanType.Custom; //org.PlanType;
             Seats = short.MaxValue; //org.Seats;
             MaxCollections = short.MaxValue; //org.MaxCollections;
@@ -86,6 +86,35 @@ namespace Bit.Core.Models.Business
 
             Hash = Convert.ToBase64String(ComputeHash());
             Signature = Convert.ToBase64String(licenseService.SignLicense(this));
+        }
+
+        public OrganizationLicense(OrganizationLicense org)
+        {
+            Version = 4;
+            LicenseKey = org.LicenseKey;
+            //InstallationId = installationId;
+            Id = org.Id;
+            Name = org.Name;
+            BillingEmail = org.BillingEmail;
+            BusinessName = org.BusinessName;
+            Enabled = true; //org.Enabled;
+            Plan = "Custom"; //org.Plan;
+            PlanType = PlanType.Custom; //org.PlanType;
+            Seats = short.MaxValue; //org.Seats;
+            MaxCollections = short.MaxValue; //org.MaxCollections;
+            UseGroups = true; //org.UseGroups;
+            UseEvents = true; //org.UseEvents;
+            UseDirectory = true; //org.UseDirectory;
+            UseTotp = true; //org.UseTotp;
+            Use2fa = true; //org.Use2fa;
+            MaxStorageGb = short.MaxValue; //org.MaxStorageGb;
+            SelfHost = true; //org.SelfHost;
+            UsersGetPremium = true; //org.UsersGetPremium;
+            Issued = DateTime.UtcNow;
+            Expires = DateTime.MaxValue;
+            Trial = false;
+
+            Hash = Convert.ToBase64String(ComputeHash());
         }
 
         public string LicenseKey { get; set; }
