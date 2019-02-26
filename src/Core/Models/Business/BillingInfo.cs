@@ -88,32 +88,17 @@ namespace Bit.Core.Models.Business
         {
             public BillingTransaction(Transaction transaction)
             {
+                Id = transaction.Id;
                 CreatedDate = transaction.CreationDate;
                 Refunded = transaction.Refunded;
                 Type = transaction.Type;
                 PaymentMethodType = transaction.PaymentMethodType;
                 Details = transaction.Details;
-
-                if(transaction.RefundedAmount.HasValue)
-                {
-                    RefundedAmount = Math.Abs(transaction.RefundedAmount.Value);
-                }
-                switch(transaction.Type)
-                {
-                    case TransactionType.Charge:
-                    case TransactionType.Credit:
-                    case TransactionType.PromotionalCredit:
-                    case TransactionType.ReferralCredit:
-                        Amount = -1 * Math.Abs(transaction.Amount);
-                        break;
-                    case TransactionType.Refund:
-                        Amount = Math.Abs(transaction.Amount);
-                        break;
-                    default:
-                        break;
-                }
+                Amount = transaction.Amount;
+                RefundedAmount = transaction.RefundedAmount;
             }
 
+            public Guid Id { get; set; }
             public DateTime CreatedDate { get; set; }
             public decimal Amount { get; set; }
             public bool? Refunded { get; set; }
