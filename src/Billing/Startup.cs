@@ -39,8 +39,12 @@ namespace Bit.Billing
             // Repositories
             services.AddSqlServerRepositories(globalSettings);
 
-            // PayPal Client
+            // PayPal Clients
             services.AddSingleton<Utilities.PayPalClient>();
+            services.AddSingleton<Utilities.PayPalIpnClient>();
+
+            // BitPay Client
+            services.AddSingleton<BitPayClient>();
 
             // Context
             services.AddScoped<CurrentContext>();
@@ -83,7 +87,7 @@ namespace Bit.Billing
                     return true;
                 }
 
-                return e.Level >= LogEventLevel.Error;
+                return e.Level >= LogEventLevel.Warning;
             });
 
             if(env.IsDevelopment())

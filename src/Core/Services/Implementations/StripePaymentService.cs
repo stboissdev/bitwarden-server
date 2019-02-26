@@ -8,6 +8,7 @@ using System.Linq;
 using Bit.Core.Models.Business;
 using Bit.Core.Enums;
 using Bit.Core.Repositories;
+using Microsoft.Extensions.Logging;
 
 namespace Bit.Core.Services
 {
@@ -17,11 +18,13 @@ namespace Bit.Core.Services
         private const string StoragePlanId = "storage-gb-annually";
 
         private readonly ITransactionRepository _transactionRepository;
+        private readonly ILogger<StripePaymentService> _logger;
         private readonly Braintree.BraintreeGateway _btGateway;
 
         public StripePaymentService(
             ITransactionRepository transactionRepository,
-            GlobalSettings globalSettings)
+            GlobalSettings globalSettings,
+            ILogger<StripePaymentService> logger)
         {
             _btGateway = new Braintree.BraintreeGateway
             {
@@ -32,6 +35,7 @@ namespace Bit.Core.Services
                 PrivateKey = globalSettings.Braintree.PrivateKey
             };
             _transactionRepository = transactionRepository;
+            _logger = logger;
         }
 
         public async Task PurchaseOrganizationAsync(Organization org, PaymentMethodType paymentMethodType,
@@ -161,36 +165,49 @@ namespace Bit.Core.Services
         public async Task PurchasePremiumAsync(User user, PaymentMethodType paymentMethodType, string paymentToken,
             short additionalStorageGb)
         {
-            var invoiceService = new InvoiceService();
-            var customerService = new CustomerService();
-
-            var createdStripeCustomer = false;
-            string stripeCustomerId = null;
-            Braintree.Transaction braintreeTransaction = null;
-            Braintree.Customer braintreeCustomer = null;
-            var stripePaymentMethod = paymentMethodType == PaymentMethodType.Card ||
-                paymentMethodType == PaymentMethodType.BankAccount;
-
+            if(paymentMethodType != PaymentMethodType.Credit && string.IsNullOrWhiteSpace(paymentToken))
+            {
+                throw new BadRequestException("Payment token is required.");
+            }
+            if(paymentMethodType == PaymentMethodType.Credit &&
+                (user.Gateway != GatewayType.Stripe || string.IsNullOrWhiteSpace(user.GatewayCustomerId)))
+            {
+                throw new BadRequestException("Your account does not have any credit available.");
+            }
             if(paymentMethodType == PaymentMethodType.BankAccount)
             {
                 throw new GatewayException("Bank account payment method is not supported at this time.");
             }
 
+            var invoiceService = new InvoiceService();
+            var customerService = new CustomerService();
+
+            var createdStripeCustomer = false;
+            var addedCreditToStripeCustomer = false;
+            Customer customer = null;
+            Braintree.Transaction braintreeTransaction = null;
+            Braintree.Customer braintreeCustomer = null;
+            var stripePaymentMethod = paymentMethodType == PaymentMethodType.Card ||
+                paymentMethodType == PaymentMethodType.BankAccount || paymentMethodType == PaymentMethodType.Credit;
+
             if(user.Gateway == GatewayType.Stripe && !string.IsNullOrWhiteSpace(user.GatewayCustomerId))
             {
+                if(!string.IsNullOrWhiteSpace(paymentToken))
+                {
+                    try
+                    {
+                        await UpdatePaymentMethodAsync(user, paymentMethodType, paymentToken);
+                    }
+                    catch { }
+                }
                 try
                 {
-                    await UpdatePaymentMethodAsync(user, paymentMethodType, paymentToken);
-                    stripeCustomerId = user.GatewayCustomerId;
-                    createdStripeCustomer = false;
+                    customer = await customerService.GetAsync(user.GatewayCustomerId);
                 }
-                catch(Exception)
-                {
-                    stripeCustomerId = null;
-                }
+                catch { }
             }
 
-            if(string.IsNullOrWhiteSpace(stripeCustomerId))
+            if(customer == null && !string.IsNullOrWhiteSpace(paymentToken))
             {
                 string stipeCustomerSourceToken = null;
                 var stripeCustomerMetadata = new Dictionary<string, string>();
@@ -226,20 +243,24 @@ namespace Bit.Core.Services
                     throw new GatewayException("Payment method is not supported at this time.");
                 }
 
-                var customer = await customerService.CreateAsync(new CustomerCreateOptions
+                customer = await customerService.CreateAsync(new CustomerCreateOptions
                 {
                     Description = user.Name,
                     Email = user.Email,
                     SourceToken = stipeCustomerSourceToken,
                     Metadata = stripeCustomerMetadata
                 });
-                stripeCustomerId = customer.Id;
                 createdStripeCustomer = true;
+            }
+
+            if(customer == null)
+            {
+                throw new GatewayException("Could not set up customer payment profile.");
             }
 
             var subCreateOptions = new SubscriptionCreateOptions
             {
-                CustomerId = stripeCustomerId,
+                CustomerId = customer.Id,
                 Items = new List<SubscriptionItemOption>(),
                 Metadata = new Dictionary<string, string>
                 {
@@ -270,50 +291,68 @@ namespace Bit.Core.Services
                 {
                     var previewInvoice = await invoiceService.UpcomingAsync(new UpcomingInvoiceOptions
                     {
-                        CustomerId = stripeCustomerId,
+                        CustomerId = customer.Id,
                         SubscriptionItems = ToInvoiceSubscriptionItemOptions(subCreateOptions.Items)
                     });
 
-                    await customerService.UpdateAsync(stripeCustomerId, new CustomerUpdateOptions
+                    if(previewInvoice.AmountDue > 0)
                     {
-                        AccountBalance = -1 * previewInvoice.AmountDue
-                    });
-
-                    if(braintreeCustomer != null)
-                    {
-                        var btInvoiceAmount = (previewInvoice.AmountDue / 100M);
-                        var transactionResult = await _btGateway.Transaction.SaleAsync(
-                            new Braintree.TransactionRequest
-                            {
-                                Amount = btInvoiceAmount,
-                                CustomerId = braintreeCustomer.Id,
-                                Options = new Braintree.TransactionOptionsRequest
-                                {
-                                    SubmitForSettlement = true,
-                                    PayPal = new Braintree.TransactionOptionsPayPalRequest
-                                    {
-                                        CustomField = $"{user.BraintreeIdField()}:{user.Id}"
-                                    }
-                                },
-                                CustomFields = new Dictionary<string, string>
-                                {
-                                    [user.BraintreeIdField()] = user.Id.ToString()
-                                }
-                            });
-
-                        if(!transactionResult.IsSuccess())
+                        var braintreeCustomerId = customer.Metadata != null &&
+                            customer.Metadata.ContainsKey("btCustomerId") ? customer.Metadata["btCustomerId"] : null;
+                        if(!string.IsNullOrWhiteSpace(braintreeCustomerId))
                         {
-                            throw new GatewayException("Failed to charge PayPal customer.");
-                        }
+                            var btInvoiceAmount = (previewInvoice.AmountDue / 100M);
+                            var transactionResult = await _btGateway.Transaction.SaleAsync(
+                                new Braintree.TransactionRequest
+                                {
+                                    Amount = btInvoiceAmount,
+                                    CustomerId = braintreeCustomerId,
+                                    Options = new Braintree.TransactionOptionsRequest
+                                    {
+                                        SubmitForSettlement = true,
+                                        PayPal = new Braintree.TransactionOptionsPayPalRequest
+                                        {
+                                            CustomField = $"{user.BraintreeIdField()}:{user.Id}"
+                                        }
+                                    },
+                                    CustomFields = new Dictionary<string, string>
+                                    {
+                                        [user.BraintreeIdField()] = user.Id.ToString()
+                                    }
+                                });
 
-                        braintreeTransaction = transactionResult.Target;
-                        subInvoiceMetadata.Add("btTransactionId", braintreeTransaction.Id);
-                        subInvoiceMetadata.Add("btPayPalTransactionId",
-                            braintreeTransaction.PayPalDetails.AuthorizationId);
+                            if(!transactionResult.IsSuccess())
+                            {
+                                throw new GatewayException("Failed to charge PayPal customer.");
+                            }
+
+                            braintreeTransaction = transactionResult.Target;
+                            subInvoiceMetadata.Add("btTransactionId", braintreeTransaction.Id);
+                            subInvoiceMetadata.Add("btPayPalTransactionId",
+                                braintreeTransaction.PayPalDetails.AuthorizationId);
+
+                            await customerService.UpdateAsync(customer.Id, new CustomerUpdateOptions
+                            {
+                                AccountBalance = -1 * previewInvoice.AmountDue
+                            });
+                            addedCreditToStripeCustomer = true;
+                        }
+                        else
+                        {
+                            throw new GatewayException("No payment was able to be collected.");
+                        }
                     }
-                    else
+                }
+                else if(paymentMethodType == PaymentMethodType.Credit)
+                {
+                    var previewInvoice = await invoiceService.UpcomingAsync(new UpcomingInvoiceOptions
                     {
-                        throw new GatewayException("No payment was able to be collected.");
+                        CustomerId = customer.Id,
+                        SubscriptionItems = ToInvoiceSubscriptionItemOptions(subCreateOptions.Items)
+                    });
+                    if(previewInvoice.AmountDue > 0)
+                    {
+                        throw new GatewayException("Your account does not have enough credit available.");
                     }
                 }
 
@@ -341,9 +380,19 @@ namespace Bit.Core.Services
             }
             catch(Exception e)
             {
-                if(createdStripeCustomer && !string.IsNullOrWhiteSpace(stripeCustomerId))
+                if(customer != null)
                 {
-                    await customerService.DeleteAsync(stripeCustomerId);
+                    if(createdStripeCustomer)
+                    {
+                        await customerService.DeleteAsync(customer.Id);
+                    }
+                    else if(addedCreditToStripeCustomer)
+                    {
+                        await customerService.UpdateAsync(customer.Id, new CustomerUpdateOptions
+                        {
+                            AccountBalance = customer.AccountBalance
+                        });
+                    }
                 }
                 if(braintreeTransaction != null)
                 {
@@ -357,7 +406,7 @@ namespace Bit.Core.Services
             }
 
             user.Gateway = GatewayType.Stripe;
-            user.GatewayCustomerId = stripeCustomerId;
+            user.GatewayCustomerId = customer.Id;
             user.GatewaySubscriptionId = subscription.Id;
             user.Premium = true;
             user.PremiumExpirationDate = subscription.CurrentPeriodEnd;
@@ -533,6 +582,20 @@ namespace Bit.Core.Services
                 // Owes more than prorateThreshold on next invoice.
                 // Invoice them and pay now instead of waiting until next billing cycle.
 
+                var customerService = new CustomerService();
+                customerService.ExpandDefaultSource = true;
+                var customer = await customerService.GetAsync(subscriber.GatewayCustomerId);
+
+                var invoiceAmountDue = upcomingPreview.StartingBalance + invoiceAmount;
+                if(invoiceAmountDue > 0 && !customer.Metadata.ContainsKey("btCustomerId"))
+                {
+                    if(customer.DefaultSource == null ||
+                        (!(customer.DefaultSource is Card) && !(customer.DefaultSource is BankAccount)))
+                    {
+                        throw new BadRequestException("No payment method is available.");
+                    }
+                }
+
                 Invoice invoice = null;
                 var createdInvoiceItems = new List<InvoiceItem>();
                 Braintree.Transaction braintreeTransaction = null;
@@ -565,14 +628,12 @@ namespace Bit.Core.Services
                     });
 
                     var invoicePayOptions = new InvoicePayOptions();
-                    var customerService = new CustomerService();
-                    var customer = await customerService.GetAsync(subscriber.GatewayCustomerId);
-                    if(customer != null)
+                    if(invoice.AmountDue > 0)
                     {
-                        if(customer.Metadata.ContainsKey("btCustomerId"))
+                        if(customer?.Metadata?.ContainsKey("btCustomerId") ?? false)
                         {
                             invoicePayOptions.PaidOutOfBand = true;
-                            var btInvoiceAmount = (invoiceAmount / 100M);
+                            var btInvoiceAmount = (invoice.AmountDue / 100M);
                             var transactionResult = await _btGateway.Transaction.SaleAsync(
                                 new Braintree.TransactionRequest
                                 {
@@ -610,7 +671,14 @@ namespace Bit.Core.Services
                         }
                     }
 
-                    await invoiceService.PayAsync(invoice.Id, invoicePayOptions);
+                    try
+                    {
+                        await invoiceService.PayAsync(invoice.Id, invoicePayOptions);
+                    }
+                    catch(StripeException)
+                    {
+                        throw new GatewayException("Unable to pay invoice.");
+                    }
                 }
                 catch(Exception e)
                 {
@@ -620,7 +688,14 @@ namespace Bit.Core.Services
                     }
                     if(invoice != null)
                     {
-                        await invoiceService.DeleteAsync(invoice.Id);
+                        await invoiceService.VoidInvoiceAsync(invoice.Id, new InvoiceVoidOptions());
+                        if(invoice.StartingBalance != 0)
+                        {
+                            await customerService.UpdateAsync(customer.Id, new CustomerUpdateOptions
+                            {
+                                AccountBalance = customer.AccountBalance
+                            });
+                        }
 
                         // Restore invoice items that were brought in
                         foreach(var item in pendingInvoiceItems)
@@ -915,6 +990,33 @@ namespace Bit.Core.Services
             return createdCustomer;
         }
 
+        public async Task<bool> CreditAccountAsync(ISubscriber subscriber, decimal creditAmount)
+        {
+            var customerService = new CustomerService();
+            Customer customer = null;
+            var customerExists = subscriber.Gateway == GatewayType.Stripe &&
+                !string.IsNullOrWhiteSpace(subscriber.GatewayCustomerId);
+            if(customerExists)
+            {
+                customer = await customerService.GetAsync(subscriber.GatewayCustomerId);
+            }
+            else
+            {
+                customer = await customerService.CreateAsync(new CustomerCreateOptions
+                {
+                    Email = subscriber.BillingEmailAddress(),
+                    Description = subscriber.BillingName(),
+                });
+                subscriber.Gateway = GatewayType.Stripe;
+                subscriber.GatewayCustomerId = customer.Id;
+            }
+            await customerService.UpdateAsync(customer.Id, new CustomerUpdateOptions
+            {
+                AccountBalance = customer.AccountBalance - (long)(creditAmount * 100)
+            });
+            return !customerExists;
+        }
+
         public async Task<BillingInfo> GetBillingAsync(ISubscriber subscriber)
         {
             var billingInfo = new BillingInfo();
@@ -976,10 +1078,10 @@ namespace Bit.Core.Services
                     var invoices = await invoiceService.ListAsync(new InvoiceListOptions
                     {
                         CustomerId = customer.Id,
-                        Limit = 20
+                        Limit = 50
                     });
-                    billingInfo.Invoices = invoices?.Data?.OrderByDescending(i => i.Date)
-                        .Select(i => new BillingInfo.BillingInvoice(i));
+                    billingInfo.Invoices = invoices.Data.Where(i => i.Status != "void" && i.Status != "draft")
+                        .OrderByDescending(i => i.Date).Select(i => new BillingInfo.BillingInvoice(i));
                 }
             }
 

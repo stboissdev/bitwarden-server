@@ -543,6 +543,7 @@ namespace Bit.Core.Services
             {
                 var adminCount =
                     await _organizationUserRepository.GetCountByFreeOrganizationAdminUserAsync(signup.Owner.Id);
+                
                 // if(adminCount > 0)
                 // {
                 //     throw new BadRequestException("You can only be an admin of one free organization.");
@@ -550,7 +551,7 @@ namespace Bit.Core.Services
             }
             // else
             // {
-            //     if(!signup.PaymentMethodType.HasValue)
+            //     if(!signup.PaymentMethodType.HasValue && !string.IsNullOrWhiteSpace(signup.PaymentToken))
             //     {
             //         if(signup.PaymentToken.StartsWith("btok_"))
             //         {
@@ -565,10 +566,6 @@ namespace Bit.Core.Services
             //             signup.PaymentMethodType = PaymentMethodType.PayPal;
             //         }
             //     }
-
-            //     await _paymentService.PurchaseOrganizationAsync(organization, signup.PaymentMethodType.Value,
-            //         signup.PaymentToken, plan, signup.AdditionalStorageGb, signup.AdditionalSeats,
-            //         signup.PremiumAccessAddon);
             // }
 
 
