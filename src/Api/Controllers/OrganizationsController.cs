@@ -212,7 +212,7 @@ namespace Bit.Api.Controllers
             }
 
             await _organizationService.ReplacePaymentMethodAsync(orgIdGuid, model.PaymentToken,
-                model.PaymentMethodType);
+                model.PaymentMethodType.Value);
         }
 
         [HttpPost("{id}/upgrade")]

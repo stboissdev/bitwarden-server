@@ -274,6 +274,11 @@ namespace Bit.Core.Utilities
                     addAuthorization.Invoke(config);
                 });
             }
+
+            if(environment.IsDevelopment())
+            {
+                Microsoft.IdentityModel.Logging.IdentityModelEventSource.ShowPII = true;
+            }
         }
 
         public static IIdentityServerBuilder AddCustomIdentityServerServices(
